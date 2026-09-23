@@ -25,6 +25,17 @@ hygienic binder introduction, hypothesis-internalization for grind, and the emis
 
 namespace Lean.Elab.Tactic.VCGen
 
+/-- The arguments of an instance of the class `cls` whose leading arguments are `fixed`, followed by
+the instance. Example: `#[E, T, instE, instT, inst]` for `cls := ToEStack` and `fixed := #[E]`. -/
+public def synthInstanceArgs? (cls : Name) (fixed : Array Expr) : MetaM (Option (Array Expr)) :=
+  withNewMCtxDepth do
+    let c ← mkConstWithFreshMVarLevels cls
+    let (args, _, _) ← forallMetaTelescopeReducing (← inferType c)
+    for arg in args, x in fixed do
+      unless ← isDefEq arg x do return none
+    let some inst ← synthInstance? (mkAppN c args) | return none
+    (args.push inst).mapM instantiateMVars
+
 /-- Change `goal`'s `Prop`-typed target to the definitionally-equal `targetNew`, assigning `goal` a
 fresh synthetic-opaque goal for `targetNew`, so the kernel checks the two types against each other.
 Unlike `MVarId.replaceTargetDefEq` it skips the `instantiateMVars`/`Expr.equal` round-trip, so it
